@@ -1,0 +1,226 @@
+/----------which period of the year from both years seek the most and leas cancellations-------------/
+select
+    order_year as Year,
+    count(*) as Cancellations
+from invoice_summary
+where return_flag = 1
+GROUP BY order_year
+order by Cancellations DESC
+limit 1;
+
+select
+    order_year as Year,
+    count(*) as Cancellations
+from invoice_summary
+where return_flag = 1
+GROUP BY order_year
+order by Cancellations asc
+limit 1;
+
+
+/*---------what time of the day is most preferred by perople to order--------*/
+SELECT
+    order_hour,
+    COUNT(*) AS orders_in_hour
+FROM behavior_db.invoice_summary
+GROUP BY order_hour
+ORDER BY orders_in_hour DESC
+LIMIT 1;
+
+/*---------------which country has the most repeat customers---------------*/
+
+SELECT
+    country,
+    COUNT(*) AS order_count
+FROM invoice_summary
+GROUP BY country
+HAVING COUNT(*) > 1
+ORDER BY order_count desc
+limit 1;
+
+/*--------What is the % of total customers who are repeat customers?--------*/
+SELECT
+    100.0 *
+    COUNT(CASE WHEN order_count >= 2 THEN 1 END)
+    /
+    COUNT(*) AS repeat_customer_percentage
+FROM (
+    SELECT
+        customer_id,
+        COUNT(*) AS order_count
+    FROM behavior_db.invoice_summary
+    GROUP BY customer_id
+) t;
+    
+
+/*-------------How long does a customer take to place their second order-----------------*/
+WITH ranked_orders AS (
+    SELECT
+        customer_id,
+        invoice_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY invoice_date
+        ) AS order_rank
+    FROM behavior_db.invoice_summary
+)
+
+SELECT
+    customer_id,
+    MAX(CASE WHEN order_rank = 1 THEN invoice_date END) AS first_order_date,
+    MAX(CASE WHEN order_rank = 2 THEN invoice_date END) AS second_order_date,
+    date_diff(
+        'day',
+        MAX(CASE WHEN order_rank = 1 THEN invoice_date END),
+        MAX(CASE WHEN order_rank = 2 THEN invoice_date END)
+    ) AS days_to_second_order
+FROM ranked_orders
+WHERE order_rank <= 2
+GROUP BY customer_id;
+
+/*---What % of revenue comes from the top 20% of customer-------------------------------*/
+WITH customer_revenue AS (
+    SELECT
+        customer_id,
+        SUM(invoice_total) AS total_revenue
+    FROM behavior_db.invoice_summary
+    GROUP BY customer_id
+),
+
+ranked_customers AS (
+    SELECT
+        customer_id,
+        total_revenue,
+        NTILE(5) OVER (ORDER BY total_revenue DESC) AS revenue_bucket
+    FROM customer_revenue
+)
+
+SELECT
+    100.0 *
+    SUM(CASE WHEN revenue_bucket = 1 THEN total_revenue ELSE 0 END)
+    /
+    SUM(total_revenue) AS pct_revenue_from_top_20
+FROM ranked_customers;
+
+
+/*-----Average days between purchases (purchase cadence).---------------------------------*/
+WITH purchase_gaps AS (
+    SELECT
+        DATE_DIFF(
+            'day',
+            LAG(invoice_date) OVER (
+                PARTITION BY customer_id
+                ORDER BY invoice_date
+            ),
+            invoice_date
+        ) AS days_between_orders
+    FROM behavior_db.invoice_summary
+)
+
+SELECT
+    AVG(days_between_orders) AS overall_avg_days_between_orders
+FROM purchase_gaps
+WHERE days_between_orders IS NOT NULL;
+
+/*-----Do repeat customers buy different products than first-time buyers?----------*/
+WITH customer_orders AS (
+    SELECT
+        customer_id,
+        COUNT(*) AS order_count
+    FROM behavior_db.invoice_summary
+    GROUP BY customer_id
+),
+
+customer_type AS (
+    SELECT
+        customer_id,
+        CASE
+            WHEN order_count >= 2 THEN 'repeat'
+            ELSE 'first_time'
+        END AS customer_segment
+    FROM customer_orders
+)
+
+SELECT
+    ct.customer_segment,
+    sp.product_code,
+    SUM(sp.quantity) AS total_quantity,
+    SUM(sp.quantity * sp.unit_price) AS total_revenue
+FROM behavior_db.staging_sales_parquet sp
+JOIN customer_type ct
+    ON sp.customer_id = ct.customer_id
+GROUP BY
+    ct.customer_segment,
+    sp.product_code
+ORDER BY
+    ct.customer_segment,
+    total_revenue DESC;
+
+/*------Do customers increase or decrease spending over time?------*/
+
+WITH customer_month_revenue AS (
+    SELECT
+        customer_id,
+        year(invoice_date) AS order_year,
+        month(invoice_date) AS order_month,
+        SUM(invoice_total) AS monthly_revenue
+    FROM behavior_db.invoice_summary
+    GROUP BY
+        customer_id,
+        year(invoice_date),
+        month(invoice_date)
+),
+
+revenue_trend AS (
+    SELECT
+        customer_id,
+        order_year,
+        order_month,
+        monthly_revenue,
+        LAG(monthly_revenue) OVER (
+            PARTITION BY customer_id
+            ORDER BY order_year, order_month
+        ) AS previous_month_revenue
+    FROM customer_month_revenue
+)
+
+SELECT
+    customer_id,
+    order_year,
+    order_month,
+    monthly_revenue,
+    previous_month_revenue,
+    CASE
+        WHEN previous_month_revenue IS NULL THEN 'first_month'
+        WHEN monthly_revenue > previous_month_revenue THEN 'increasing'
+        WHEN monthly_revenue < previous_month_revenue THEN 'decreasing'
+        ELSE 'stable'
+    END AS spending_trend
+FROM revenue_trend;
+
+
+/*----------------time between first and second order------------*/
+
+WITH ranked_orders AS (
+    SELECT
+        customer_id,
+        invoice_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY invoice_date
+        ) AS order_rank
+    FROM behavior_db.invoice_summary
+)
+
+SELECT
+    customer_id,
+    MAX(CASE WHEN order_rank = 1 THEN invoice_date END) AS first_order_date,
+    MAX(CASE WHEN order_rank = 2 THEN invoice_date END) AS second_order_date,
+    date_diff(
+        'day',
+        MAX(CASE WHEN order_rank = 1 THEN invoice_date END),
+        MAX(CASE WHEN order_rank = 2 THEN invoice_date END)
+    ) AS days_to_second_order
+FROM ranked_orders
+WHERE order_rank <= 2
+GROUP BY customer_id;

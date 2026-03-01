@@ -1,0 +1,134 @@
+create database behavior_db;
+
+------creating external tables----------
+
+create external table raw_sales (
+  invoice_no STRING,
+  stock_code STRING,
+  description STRING,
+  quantity INT,
+  invoice_date STRING,
+  unit_price DOUBLE,
+  customer_id STRING,
+  country STRING
+)
+row format delimited
+fields terminated by ','
+stored as textfile
+location 's3://deepak-behavior-analytics-lake/raw/'
+tblproperties ("skip.header.line.count"="1");
+
+
+----------testing-----------------
+select * from raw_sales limit 10;
+
+---------checking for nulls---------
+select
+    count (*) as total_rows,
+    sum(case when customer_id is null then 1 else 0 end) as null_customer_id,
+    sum(case when invoice_no is null then 1 else 0 end) as null_invoice_no,
+    sum(case when quantity is null then 1 else 0 end) as null_quantity,
+    sum(case when unit_price is null then 1 else 0 end) as null_unit_price,
+    sum(case when invoice_date is null then 1 else 0 end) as null_invoice_date,
+    sum(case when stock_code is null then 1 else 0 end) as null_stock_code,
+    sum(case when country is null then 1 else 0 end) as null_country
+from raw_sales;
+
+----------checking nulls for quantity and unit price-------------
+select COUNT (*) as total_rows
+from raw_sales
+where quantity is null
+and unit_price IS NULL;
+----------------there are total 12173 rows which have both quantity and unit price null-----------------
+-----checking if there is pattern in null values------------
+select distinct invoice_no
+from raw_sales
+where quantity is null
+and unit_price is null
+limit 20;
+
+---------checking cancelled orders-------19494
+SELECT COUNT(*)
+FROM raw_sales
+WHERE invoice_no LIKE 'C%';
+
+----------checking how many cancelled orders which have quantity and unit_price as null-----------144
+SELECT COUNT(*)
+FROM raw_sales
+WHERE invoice_no LIKE 'C%'
+  AND quantity IS NULL 
+  AND unit_price IS NULL;
+  
+---------------------checking how many orders which are not cancelled by are null for quantity and invoice_no------12029
+SELECT COUNT(*)
+FROM raw_sales
+WHERE invoice_no not LIKE 'C%'
+  AND quantity IS NULL 
+  AND unit_price IS NULL;
+  
+--------------we investigate the 12029 rows which are not cancelled by show nulls------------
+SELECT
+    COUNT(DISTINCT invoice_no) AS distinct_invoices,
+    COUNT(DISTINCT customer_id) AS distinct_customers
+FROM raw_sales
+WHERE quantity IS NULL
+  AND unit_price IS NULL
+  AND invoice_no NOT LIKE 'C%';
+  
+----------checking if description has null or incorrect data-------------------
+SELECT
+     DISTINCT description
+FROM raw_sales
+WHERE quantity IS NULL
+  AND unit_price IS NULL
+limit 20;
+
+----------checking for row content mismatch------------
+select *
+from raw_sales
+where quantity is NULL
+and unit_price is NULL
+limit 10;
+
+---------------since we have null rows because of incorrect parsing of csv we need to drop the table and reimport mismatch------------
+drop table raw_sales;
+
+----------recreating using opencsvserde properly----------------
+
+CREATE EXTERNAL TABLE behavior_db.raw_sales (
+  invoice_no STRING,
+  stock_code STRING,
+  description STRING,
+  quantity INT,
+  invoice_date STRING,
+  unit_price DOUBLE,
+  customer_id STRING,
+  country STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+  "separatorChar" = ",",
+  "quoteChar" = "\"",
+  "escapeChar" = "\\"
+)
+STORED AS TEXTFILE
+LOCATION 's3://deepak-behavior-analytics-lake/raw/'
+TBLPROPERTIES ("skip.header.line.count"="1");
+
+---------checking for nulls---------
+select
+    count (*) as total_rows,
+    sum(case when customer_id is null then 1 else 0 end) as null_customer_id,
+    sum(case when invoice_no is null then 1 else 0 end) as null_invoice_no,
+    sum(case when quantity is null then 1 else 0 end) as null_quantity,
+    sum(case when unit_price is null then 1 else 0 end) as null_unit_price,
+    sum(case when invoice_date is null then 1 else 0 end) as null_invoice_date,
+    sum(case when stock_code is null then 1 else 0 end) as null_stock_code,
+    sum(case when country is null then 1 else 0 end) as null_country
+from raw_sales;
+
+--- checking for data consistency in rows---------
+
+select * 
+from raw_sales 
+limit 10;

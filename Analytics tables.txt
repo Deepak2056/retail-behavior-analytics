@@ -1,0 +1,100 @@
+create table behavior_db.invoice_summary
+with (
+    format ='PARQUET',
+    external_location = 's3://deepak-behavior-analytics-lake/analytics/invoice_summary/',
+    write_compression ='SNAPPY'
+) as
+select
+        invoice_id,
+        customer_id,
+        country,
+        invoice_timestamp,
+        hour(invoice_timestamp) as order_hour,
+        day_of_week(invoice_timestamp) AS order_day_of_week,
+        month(invoice_timestamp) AS order_month,
+        year(invoice_timestamp) AS order_year,
+        min(invoice_date) as invoice_date,
+        sum(quantity*unit_price) as invoice_total,
+        sum(quantity) as total_items,
+        count(distinct product_code) as distinct_products,
+        -- Return flag (at least one negative line)
+    CASE 
+        WHEN SUM(CASE WHEN quantity < 0 THEN 1 ELSE 0 END) > 0 
+        THEN 1 ELSE 0 
+    END AS return_flag
+from behavior_db.staging_sales_parquet
+group by
+invoice_id,
+customer_id;
+
+select * 
+from invoice_summary
+limit 3;
+
+--------------------customer summary-------------------------------------------
+create table behavior_db.customer_summary
+with
+(format = 'PARQUET',
+external_location='s3://deepak-behavior-analytics-lake/analytics/customer_summary/',
+write_compression = 'SNAPPY')
+as
+SELECT
+    customer_id,
+    COUNT(*) AS total_orders,
+    SUM(invoice_total) AS total_revenue
+FROM behavior_db.invoice_summary
+GROUP BY customer_id;
+
+---------------------------product summary table---------------------------------------
+create table behavior_db.product_summary
+with
+(   format='PARQUET',
+    external_location = 's3://deepak-behavior-analytics-lake/analytics/product_summary/',
+    write_compression='SNAPPY'
+) as
+select
+    product_code,
+    product_description,
+    sum(quantity) as quantity_sold,
+    round(SUM(unit_price*quantity)) as total_revenue ------------------/--rounded the quantity---/
+from behavior_db.staging_sales_parquet
+group by
+    product_code,
+    product_description;
+
+--------------------------------date summary-------------------------------------------
+create table behavior_db.date_summary
+with
+(   format='PARQUET',
+    external_location='s3://deepak-behavior-analytics-lake/analytics/date_summary/',
+    write_compression='SNAPPY'
+)as
+select
+    invoice_date,
+    count(invoice_id) as total_orders,
+    round(SUM(unit_price*quantity)) as total_revenue,
+    count(distinct customer_id) as total_customers
+from behavior_db.staging_sales_parquet
+group by
+    invoice_date;
+    
+-----------------------------customer_month_summary-----------------------
+CREATE TABLE behavior_db.customer_month_summary
+WITH (
+    format = 'PARQUET',
+    external_location = 's3://deepak-behavior-analytics-lake/analytics/customer_month_summary/',
+    write_compression = 'SNAPPY'
+) AS
+SELECT
+    customer_id,
+    year(invoice_date) AS order_year,
+    DATE_TRUNC('month', invoice_date) AS month_start_date,
+    month(invoice_date) AS order_month,
+    COUNT(*) AS monthly_orders,
+    ROUND(SUM(invoice_total)) AS monthly_revenue
+FROM behavior_db.invoice_summary
+GROUP BY
+    customer_id,
+    year(invoice_date),
+    month(invoice_date),
+    DATE_TRUNC('month', invoice_date);

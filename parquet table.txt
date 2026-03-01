@@ -1,0 +1,17 @@
+create table behavior_db.staging_sales_parquet
+with (
+    format ='PARQUET',
+    external_location = 's3://deepak-behavior-analytics-lake/staging_parquet/',
+    write_compression ='SNAPPY'
+) as
+select
+    invoice_id,
+    product_code,
+    product_description,
+    quantity,
+    unit_price,
+    customer_id,
+    country,
+    invoice_timestamp,
+    invoice_date
+FROM behavior_db.staging_sales;

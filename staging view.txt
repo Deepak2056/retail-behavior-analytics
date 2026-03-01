@@ -1,0 +1,41 @@
+----------creating view for staging purpose------------
+
+CREATE OR REPLACE VIEW behavior_db.staging_sales AS
+SELECT
+    TRIM(invoice_no)        AS invoice_id,
+    TRIM(stock_code)        AS product_code,
+    TRIM(description)       AS product_description,
+    quantity,
+    unit_price,
+    TRIM(customer_id)       AS customer_id,
+    country,
+    TRY_CAST(NULLIF(TRIM(invoice_date), '') AS TIMESTAMP) AS invoice_timestamp,
+    CAST(
+        TRY_CAST(NULLIF(TRIM(invoice_date), '') AS TIMESTAMP)
+    AS DATE) AS invoice_date
+FROM raw_sales;
+
+-------running on raw sales to identify the INVALID_CAST_ARGUMENT problem--------------
+
+select invoice_date
+from raw_sales
+where try_cast(nullif(TRIM(invoice_date), '')as timestamp) is null
+and invoice_date is not null
+limit 20;
+-----------since this returned no rows, it means we had some trim problems--------
+----proof of trim problem--------------
+SELECT COUNT(*)
+FROM raw_sales
+WHERE invoice_date != TRIM(invoice_date); ----------this also returned no values--------------
+
+SELECT COUNT(*)
+FROM raw_sales
+WHERE invoice_date is null; ------------this also returned no values----------------
+
+
+select *
+from staging_sales
+limit 30;
+
+select count(*)
+from staging_sales;
