@@ -144,13 +144,7 @@ Star-schema inspired design
 
 ## Dashboard Structure
 🏠 Page 1 — Executive Overview
-Total Revenue
-Total Orders
-Total Customers
-% Repeat Customers
-% Revenue from Top 20%
-Revenue Trend
-Cancellation Trend
+![Dashboard Overview](powerbi-files/ExecutiveBehaviorOverview.png)
 
 👥 Page 2 — Customer Behavior
 Average Orders per Customer
