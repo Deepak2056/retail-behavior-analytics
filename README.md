@@ -131,38 +131,20 @@ Connected via DSN
 Used Import Mode for performance
 
 🔹 Data Model Structure
-Fact Tables:
-invoice_summary
-customer_month_summary
-Dimension Tables:
-customer_summary
-Date Table (created in Power BI)
-All relationships:
-One-to-many
-Single direction
-Star-schema inspired design
+![Model](powerbi-files/Model.jpg)
 
 ## Dashboard Structure
 🏠 Page 1 — Executive Overview
 ![Dashboard Overview](powerbi-files/ExecutiveBehaviorOverview.png)
 
 👥 Page 2 — Customer Behavior
-Average Orders per Customer
-Average Revenue per Customer
-Average Days Between Purchases
-Spending Growth Trend
-Repeat vs First-Time Revenue Contribution
+![Customer](powerbi-files/CustomerBehaviorandLoyalty.png)
 
 🕒 Page 3 — Time & Seasonality
-Orders by Hour
-Orders by Day of Week
-Revenue by Month
-Seasonal Patterns
+![Time](powerbi-files/TimeBehavior.png)
 
 🌍 Page 4 — Geographic Insights
-Revenue by Country
-Repeat Customers by Country
-Return Rate by Country
+![Geographic](powerbi-files/GeographicandOperationalBehavior.png)
 
 ## Key Metrics Implemented
 Total Revenue
