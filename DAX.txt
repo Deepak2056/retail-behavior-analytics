@@ -1,0 +1,166 @@
+=============================
+DATE TABLE
+=============================
+
+Date =
+ADDCOLUMNS(
+CALENDAR (MIN(invoice_summary[invoice_date]), MAX(invoice_summary[invoice_date])),
+"Year", YEAR([Date]),
+"Month Number", MONTH([Date]),
+"Month Name", FORMAT([Date], "MMMM"),
+"Year-Month", FORMAT([Date], "YYYY-MM"),
+"Quarter", "Q" & FORMAT([Date], "Q"),
+"Weekday Number", WEEKDAY([Date],2),
+"Weekday Name", FORMAT([Date], "dddd")
+)
+
+=============================
+CORE KPIs
+=============================
+
+Total Revenue =
+SUM(invoice_summary[invoice_total])
+
+Total Orders =
+COUNT(invoice_summary[invoice_id])
+
+Total Customers =
+DISTINCTCOUNT(invoice_summary[customer_id])
+
+Average Order Value (AOV) =
+DIVIDE([Total Revenue], [Total Orders])
+
+Average Revenue per Customer =
+DIVIDE([Total Revenue], [Total Customers])
+
+Average Orders per Customer =
+DIVIDE([Total Orders], [Total Customers])
+
+=============================
+REPEAT CUSTOMER METRICS
+=============================
+
+Repeat Customers =
+CALCULATE(
+DISTINCTCOUNT(invoice_summary[customer_id]),
+FILTER(
+VALUES(invoice_summary[customer_id]),
+CALCULATE(COUNT(invoice_summary[invoice_id])) >= 2
+)
+)
+
+% Repeat Customers =
+DIVIDE([Repeat Customers], [Total Customers])
+
+Repeat Revenue =
+CALCULATE(
+[Total Revenue],
+FILTER(
+VALUES(invoice_summary[customer_id]),
+CALCULATE(COUNT(invoice_summary[invoice_id])) >= 2
+)
+)
+
+Repeat Revenue % =
+DIVIDE([Repeat Revenue], [Total Revenue])
+
+=============================
+RETURN / CANCELLATION METRICS
+=============================
+
+Total Returns =
+CALCULATE(
+COUNT(invoice_summary[invoice_id]),
+invoice_summary[return_flag] = 1
+)
+
+Return Rate % =
+DIVIDE([Total Returns], [Total Orders])
+
+=============================
+REVENUE CONCENTRATION (TOP 20%)
+=============================
+
+Customer Revenue =
+SUM(invoice_summary[invoice_total])
+
+Customer Rank by Revenue =
+RANKX(
+ALL(invoice_summary[customer_id]),
+[Customer Revenue],
+, DESC
+)
+
+Total Customers (All) =
+CALCULATE(DISTINCTCOUNT(invoice_summary[customer_id]), ALL(invoice_summary))
+
+Top 20% Customer Threshold =
+ROUNDUP([Total Customers (All)] * 0.2, 0)
+
+Revenue from Top 20% =
+CALCULATE(
+[Total Revenue],
+FILTER(
+ALL(invoice_summary[customer_id]),
+[Customer Rank by Revenue] <= [Top 20% Customer Threshold]
+)
+)
+
+Revenue from Top 20% % =
+DIVIDE([Revenue from Top 20%], [Total Revenue])
+
+=============================
+TIME-BASED METRICS
+=============================
+
+Revenue MoM Growth % =
+VAR CurrentMonthRevenue = [Total Revenue]
+VAR PreviousMonthRevenue =
+CALCULATE(
+[Total Revenue],
+DATEADD(Date[Date], -1, MONTH)
+)
+RETURN
+DIVIDE(CurrentMonthRevenue - PreviousMonthRevenue, PreviousMonthRevenue)
+
+=============================
+CUSTOMER MONTH ANALYSIS
+=============================
+
+Monthly Revenue =
+SUM(customer_month_summary[monthly_revenue])
+
+Monthly Orders =
+SUM(customer_month_summary[monthly_orders])
+
+Average Monthly Revenue per Customer =
+AVERAGE(customer_month_summary[monthly_revenue])
+
+Average Monthly Orders per Customer =
+AVERAGE(customer_month_summary[monthly_orders])
+
+=============================
+PURCHASE CADENCE
+=============================
+
+Average Days Between Purchases =
+AVERAGE(customer_summary[avg_days_between_orders])
+
+(Assumes you stored avg_days_between_orders in customer_summary via SQL)
+
+=============================
+COUNTRY METRICS
+=============================
+
+Revenue by Country =
+[Total Revenue]
+
+Repeat Customers by Country =
+CALCULATE(
+DISTINCTCOUNT(invoice_summary[customer_id]),
+FILTER(
+VALUES(invoice_summary[customer_id]),
+CALCULATE(COUNT(invoice_summary[invoice_id])) >= 2
+)
+)
+
