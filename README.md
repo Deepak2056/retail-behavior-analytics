@@ -1,7 +1,5 @@
-# retail-behavior-analytics
+# Customer Behavior Analytics — AWS + Athena + Power BI
 This is a behavior analytics project of retail transactions
-
-## Customer Behavior Analytics — AWS + Athena + Power BI
 
 ## Project Overview
 
